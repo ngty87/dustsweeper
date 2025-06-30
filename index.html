@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>ゴミ押しアクションゲーム</title>
+  <style>
+    canvas {
+      background-color: #e0f7e9;
+      display: block;
+      margin: 20px auto 0;
+      border: 2px solid #444;
+    }
+    p {
+      text-align: center;
+      font-size: 18px;
+      margin: 5px;
+    }
+    #timeBar {
+      width: 480px;
+      height: 20px;
+      margin: 10px auto;
+      background: #ddd;
+      position: relative;
+    }
+    #timeFill {
+      height: 100%;
+      background: #4caf50;
+      width: 100%;
+    }
+  </style>
+</head>
+<body>
+  <canvas id="gameCanvas" width="480" height="480"></canvas>
+  <div id="timeBar"><div id="timeFill"></div></div>
+  <p>得点：<span id="score">0</span>　最高得点：<span id="bestScore">0</span></p>
+  <audio id="pikoSound" src="piko.wav" preload="auto"></audio>
+  <audio id="bokaSound" src="boka.wav" preload="auto"></audio>
+  <audio id="overSound" src="over.wav" preload="auto"></audio>
+
+  <script>
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    const scoreDisplay = document.getElementById('score');
+    const bestDisplay = document.getElementById('bestScore');
+    const timeFill = document.getElementById('timeFill');
+
+    const tileSize = 40;
+    const cols = canvas.width / tileSize;
+    const rows = canvas.height / tileSize;
+
+    let player, keys, garbageList, bombList;
+    let score = 0;
+    let bestScore = 0;
+    let gameOver = false;
+    let startTime, remainingTime = 30;
+    const maxTime = 30;
+    let countdown = 3;
+    let countdownActive = true;
+
+    function drawTimeBar() {
+      const filledWidth = (Math.max(remainingTime, 0) / maxTime) * 100;
+      timeFill.style.width = filledWidth + '%';
+    }
+
+    function playSound(id) {
+      const sound = document.getElementById(id);
+      if (sound) {
+        const clone = sound.cloneNode();
+        clone.play().catch(console.warn);
+      }
+    }
+
+    function playOverSoundThreeTimes() {
+      let count = 0;
+      function playNext() {
+        if (count >= 3) return;
+        playSound('overSound');
+        count++;
+        setTimeout(playNext, 500);
+      }
+      playNext();
+    }
+
+    function resetGame() {
+      player = { x: 6 * tileSize, y: 6 * tileSize, size: tileSize, color: 'blue' };
+      keys = { ArrowUp: false, ArrowDown: false, ArrowLeft: false, ArrowRight: false };
+      garbageList = [];
+      bombList = [];
+      score = 0;
+      remainingTime = maxTime;
+      gameOver = false;
+      countdown = 3;
+      countdownActive = true;
+
+      const occupied = new Set();
+      occupied.add(`${player.x},${player.y}`);
+
+      while (bombList.length < 10) {
+        const bx = Math.floor(Math.random() * cols) * tileSize;
+        const by = Math.floor(Math.random() * rows) * tileSize;
+        const key = `${bx},${by}`;
+        if (!occupied.has(key)) {
+          occupied.add(key);
+          bombList.push({ x: bx, y: by, size: tileSize });
+        }
+      }
+
+      while (garbageList.length < 100) {
+        const gx = Math.floor(Math.random() * cols) * tileSize;
+        const gy = Math.floor(Math.random() * rows) * tileSize;
+        const key = `${gx},${gy}`;
+        if (!occupied.has(key)) {
+          occupied.add(key);
+          garbageList.push({ x: gx, y: gy, size: tileSize });
+        }
+      }
+
+      scoreDisplay.textContent = score;
+      bestDisplay.textContent = bestScore;
+    }
+
+    function drawGameOver() {
+      ctx.fillStyle = 'rgba(0,0,0,0.5)';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.fillStyle = '#ff4444';
+      ctx.font = 'bold 60px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('⏱ タイムアップ！', canvas.width / 2, canvas.height / 2);
+    }
+
+    function movePlayer(dx, dy) {
+      if (gameOver || countdownActive) return;
+      const nextX = player.x + dx;
+      const nextY = player.y + dy;
+
+      const garbageChain = [];
+      let gx = nextX, gy = nextY;
+      while (true) {
+        const found = garbageList.find(g => g.x === gx && g.y === gy);
+        if (found) {
+          garbageChain.push(found);
+          gx += dx;
+          gy += dy;
+        } else {
+          break;
+        }
+      }
+
+      const blocked = garbageList.some(g => g.x === gx && g.y === gy);
+
+      if (garbageChain.length > 0 && !blocked) {
+        for (let i = garbageChain.length - 1; i >= 0; i--) {
+          const g = garbageChain[i];
+          g.x += dx;
+          g.y += dy;
+
+          const bombIndex = bombList.findIndex(b => b.x === g.x && b.y === g.y);
+          if (bombIndex !== -1) {
+            playSound('bokaSound');
+            remainingTime -= 10;
+            document.body.style.backgroundColor = '#ffcccc';
+            setTimeout(() => document.body.style.backgroundColor = '', 200);
+            bombList.splice(bombIndex, 1);
+          }
+
+          if (g.x < 0 || g.x >= canvas.width || g.y < 0 || g.y >= canvas.height) {
+            garbageList.splice(garbageList.indexOf(g), 1);
+            score++;
+            scoreDisplay.textContent = score;
+            playSound('pikoSound');
+          }
+        }
+        player.x = nextX;
+        player.y = nextY;
+      } else if (
+        nextX >= 0 && nextX < canvas.width &&
+        nextY >= 0 && nextY < canvas.height
+      ) {
+        player.x = nextX;
+        player.y = nextY;
+      }
+    }
+
+    function update() {
+      if (!gameOver && !countdownActive) {
+        if (keys.ArrowUp) movePlayer(0, -tileSize);
+        if (keys.ArrowDown) movePlayer(0, tileSize);
+        if (keys.ArrowLeft) movePlayer(-tileSize, 0);
+        if (keys.ArrowRight) movePlayer(tileSize, 0);
+      }
+    }
+
+    function drawCountdown() {
+      if (countdownActive) {
+        ctx.fillStyle = 'rgba(0,0,0,0.3)';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.fillStyle = '#000';
+        ctx.font = 'bold 80px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(countdown > 0 ? countdown : 'スタート！', canvas.width / 2, canvas.height / 2);
+      }
+    }
+
+    function draw() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      for (const g of garbageList) {
+        ctx.fillStyle = 'gray';
+        ctx.fillRect(g.x, g.y, g.size, g.size);
+      }
+      for (const b of bombList) {
+        ctx.fillStyle = 'red';
+        ctx.beginPath();
+        ctx.arc(b.x + tileSize / 2, b.y + tileSize / 2, tileSize / 2 - 4, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.fillStyle = player.color;
+      ctx.fillRect(player.x, player.y, player.size, player.size);
+      drawTimeBar();
+      if (gameOver && remainingTime <= 0) drawGameOver();
+      drawCountdown();
+    }
+
+    function gameLoop() {
+      const now = Date.now();
+      if (!gameOver && !countdownActive) {
+        remainingTime -= (now - startTime) / 1000;
+        startTime = now;
+        if (remainingTime <= 0) {
+          remainingTime = 0;
+          gameOver = true;
+          if (score > bestScore) {
+            bestScore = score;
+            localStorage.setItem('bestScore', bestScore);
+          }
+          bestDisplay.textContent = bestScore;
+          playOverSoundThreeTimes();
+        }
+      }
+      draw();
+      requestAnimationFrame(gameLoop);
+    }
+
+    document.addEventListener('keydown', e => {
+      if (e.key in keys) keys[e.key] = true;
+      if (gameOver && e.key === 'Enter') {
+        resetGame();
+        startCountdown();
+      }
+    });
+    document.addEventListener('keyup', e => {
+      if (e.key in keys) keys[e.key] = false;
+    });
+
+    function startCountdown() {
+      let interval = setInterval(() => {
+        countdown--;
+        if (countdown < 0) {
+          countdownActive = false;
+          startTime = Date.now();
+          clearInterval(interval);
+        }
+      }, 1000);
+    }
+
+    window.onload = () => {
+      if (!localStorage.getItem('bestScore')) {
+        localStorage.setItem('bestScore', '0');
+      }
+      bestScore = parseInt(localStorage.getItem('bestScore'));
+      resetGame();
+      startCountdown();
+      setInterval(update, 100);
+      gameLoop();
+    };
+  </script>
+</body>
+</html>
