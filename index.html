@@ -15,24 +15,57 @@
       font-size: 18px;
       margin: 5px;
     }
-    #timeBar {
+    #timeBarContainer {
       width: 480px;
       height: 20px;
-      margin: 10px auto;
-      background: #ddd;
-      position: relative;
+      margin: 10px auto 0;
+      background: #ccc;
+      border: 1px solid #999;
     }
-    #timeFill {
+    #timeBarFill {
       height: 100%;
       background: #4caf50;
       width: 100%;
+    }
+    #virtualButtons {
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      display: grid;
+      grid-template-columns: 40px 40px 40px;
+      grid-template-rows: 40px 40px;
+      gap: 5px;
+      touch-action: none;
+    }
+    .btn {
+      width: 40px;
+      height: 40px;
+      background-color: #ddd;
+      border: 2px solid #444;
+      border-radius: 8px;
+      font-size: 20px;
+      text-align: center;
+      line-height: 36px;
+      user-select: none;
     }
   </style>
 </head>
 <body>
   <canvas id="gameCanvas" width="480" height="480"></canvas>
-  <div id="timeBar"><div id="timeFill"></div></div>
+  <div id="timeBarContainer">
+    <div id="timeBarFill"></div>
+  </div>
   <p>得点：<span id="score">0</span>　最高得点：<span id="bestScore">0</span></p>
+
+  <div id="virtualButtons">
+    <div></div>
+    <div class="btn" data-dir="up">↑</div>
+    <div></div>
+    <div class="btn" data-dir="left">←</div>
+    <div class="btn" data-dir="down">↓</div>
+    <div class="btn" data-dir="right">→</div>
+  </div>
+
   <audio id="pikoSound" src="piko.wav" preload="auto"></audio>
   <audio id="bokaSound" src="boka.wav" preload="auto"></audio>
   <audio id="overSound" src="over.wav" preload="auto"></audio>
@@ -42,7 +75,7 @@
     const ctx = canvas.getContext('2d');
     const scoreDisplay = document.getElementById('score');
     const bestDisplay = document.getElementById('bestScore');
-    const timeFill = document.getElementById('timeFill');
+    const timeBarFill = document.getElementById('timeBarFill');
 
     const tileSize = 40;
     const cols = canvas.width / tileSize;
@@ -50,16 +83,14 @@
 
     let player, keys, garbageList, bombList;
     let score = 0;
-    let bestScore = 0;
+    let bestScore = parseInt(localStorage.getItem('bestScore')) || 0;
     let gameOver = false;
     let startTime, remainingTime = 30;
     const maxTime = 30;
-    let countdown = 3;
-    let countdownActive = true;
 
-    function drawTimeBar() {
-      const filledWidth = (Math.max(remainingTime, 0) / maxTime) * 100;
-      timeFill.style.width = filledWidth + '%';
+    function updateTimeBar() {
+      const percent = Math.max(remainingTime, 0) / maxTime * 100;
+      timeBarFill.style.width = percent + '%';
     }
 
     function playSound(id) {
@@ -89,8 +120,7 @@
       score = 0;
       remainingTime = maxTime;
       gameOver = false;
-      countdown = 3;
-      countdownActive = true;
+      localStorage.setItem('bestScore', bestScore);
 
       const occupied = new Set();
       occupied.add(`${player.x},${player.y}`);
@@ -117,6 +147,39 @@
 
       scoreDisplay.textContent = score;
       bestDisplay.textContent = bestScore;
+      startCountdown();
+    }
+
+    function startCountdown() {
+      const overlay = document.createElement('div');
+      overlay.style.position = 'fixed';
+      overlay.style.top = '0';
+      overlay.style.left = '0';
+      overlay.style.width = '100%';
+      overlay.style.height = '100%';
+      overlay.style.background = 'rgba(255, 255, 255, 0.8)';
+      overlay.style.display = 'flex';
+      overlay.style.alignItems = 'center';
+      overlay.style.justifyContent = 'center';
+      overlay.style.fontSize = '64px';
+      overlay.style.zIndex = '1000';
+      document.body.appendChild(overlay);
+
+      let count = 3;
+      overlay.textContent = count;
+      const interval = setInterval(() => {
+        count--;
+        if (count === 0) {
+          overlay.textContent = 'スタート！';
+        } else if (count < 0) {
+          clearInterval(interval);
+          document.body.removeChild(overlay);
+          startTime = Date.now();
+          gameLoop();
+        } else {
+          overlay.textContent = count;
+        }
+      }, 1000);
     }
 
     function drawGameOver() {
@@ -130,7 +193,7 @@
     }
 
     function movePlayer(dx, dy) {
-      if (gameOver || countdownActive) return;
+      if (gameOver) return;
       const nextX = player.x + dx;
       const nextY = player.y + dy;
 
@@ -157,11 +220,11 @@
 
           const bombIndex = bombList.findIndex(b => b.x === g.x && b.y === g.y);
           if (bombIndex !== -1) {
+            bombList.splice(bombIndex, 1);
             playSound('bokaSound');
             remainingTime -= 10;
             document.body.style.backgroundColor = '#ffcccc';
             setTimeout(() => document.body.style.backgroundColor = '', 200);
-            bombList.splice(bombIndex, 1);
           }
 
           if (g.x < 0 || g.x >= canvas.width || g.y < 0 || g.y >= canvas.height) {
@@ -183,23 +246,11 @@
     }
 
     function update() {
-      if (!gameOver && !countdownActive) {
+      if (!gameOver) {
         if (keys.ArrowUp) movePlayer(0, -tileSize);
         if (keys.ArrowDown) movePlayer(0, tileSize);
         if (keys.ArrowLeft) movePlayer(-tileSize, 0);
         if (keys.ArrowRight) movePlayer(tileSize, 0);
-      }
-    }
-
-    function drawCountdown() {
-      if (countdownActive) {
-        ctx.fillStyle = 'rgba(0,0,0,0.3)';
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
-        ctx.fillStyle = '#000';
-        ctx.font = 'bold 80px sans-serif';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText(countdown > 0 ? countdown : 'スタート！', canvas.width / 2, canvas.height / 2);
       }
     }
 
@@ -217,24 +268,23 @@
       }
       ctx.fillStyle = player.color;
       ctx.fillRect(player.x, player.y, player.size, player.size);
-      drawTimeBar();
       if (gameOver && remainingTime <= 0) drawGameOver();
-      drawCountdown();
     }
 
     function gameLoop() {
       const now = Date.now();
-      if (!gameOver && !countdownActive) {
+      if (!gameOver) {
         remainingTime -= (now - startTime) / 1000;
         startTime = now;
+        updateTimeBar();
         if (remainingTime <= 0) {
           remainingTime = 0;
           gameOver = true;
           if (score > bestScore) {
             bestScore = score;
             localStorage.setItem('bestScore', bestScore);
+            bestDisplay.textContent = bestScore;
           }
-          bestDisplay.textContent = bestScore;
           playOverSoundThreeTimes();
         }
       }
@@ -244,36 +294,33 @@
 
     document.addEventListener('keydown', e => {
       if (e.key in keys) keys[e.key] = true;
-      if (gameOver && e.key === 'Enter') {
-        resetGame();
-        startCountdown();
-      }
+      if (gameOver && e.key === 'Enter') resetGame();
     });
     document.addEventListener('keyup', e => {
       if (e.key in keys) keys[e.key] = false;
     });
 
-    function startCountdown() {
-      let interval = setInterval(() => {
-        countdown--;
-        if (countdown < 0) {
-          countdownActive = false;
-          startTime = Date.now();
-          clearInterval(interval);
-        }
-      }, 1000);
-    }
-
-    window.onload = () => {
-      if (!localStorage.getItem('bestScore')) {
-        localStorage.setItem('bestScore', '0');
+    document.querySelectorAll('.btn').forEach(btn => {
+      const dir = btn.dataset.dir;
+      let key;
+      switch (dir) {
+        case 'up': key = 'ArrowUp'; break;
+        case 'down': key = 'ArrowDown'; break;
+        case 'left': key = 'ArrowLeft'; break;
+        case 'right': key = 'ArrowRight'; break;
       }
-      bestScore = parseInt(localStorage.getItem('bestScore'));
-      resetGame();
-      startCountdown();
-      setInterval(update, 100);
-      gameLoop();
-    };
+      btn.addEventListener('touchstart', e => {
+        keys[key] = true;
+        e.preventDefault();
+      });
+      btn.addEventListener('touchend', e => {
+        keys[key] = false;
+        e.preventDefault();
+      });
+    });
+
+    resetGame();
+    setInterval(update, 100);
   </script>
 </body>
 </html>
