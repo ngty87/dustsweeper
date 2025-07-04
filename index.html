@@ -48,6 +48,20 @@
       line-height: 36px;
       user-select: none;
     }
+    #countdownOverlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: #000;
+      color: #fff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 64px;
+      z-index: 1000;
+    }
   </style>
 </head>
 <body>
@@ -66,6 +80,8 @@
     <div class="btn" data-dir="right">→</div>
   </div>
 
+  <div id="countdownOverlay" style="display:none;"></div>
+
   <audio id="pikoSound" src="piko.wav" preload="auto"></audio>
   <audio id="bokaSound" src="boka.wav" preload="auto"></audio>
   <audio id="overSound" src="over.wav" preload="auto"></audio>
@@ -76,6 +92,7 @@
     const scoreDisplay = document.getElementById('score');
     const bestDisplay = document.getElementById('bestScore');
     const timeBarFill = document.getElementById('timeBarFill');
+    const countdownOverlay = document.getElementById('countdownOverlay');
 
     const tileSize = 40;
     const cols = canvas.width / tileSize;
@@ -155,35 +172,22 @@
 
     function startCountdown() {
       countdownActive = true;
-      const overlay = document.createElement('div');
-      overlay.style.position = 'fixed';
-      overlay.style.top = '0';
-      overlay.style.left = '0';
-      overlay.style.width = '100%';
-      overlay.style.height = '100%';
-      overlay.style.background = 'rgba(255, 255, 255, 0.8)';
-      overlay.style.display = 'flex';
-      overlay.style.alignItems = 'center';
-      overlay.style.justifyContent = 'center';
-      overlay.style.fontSize = '64px';
-      overlay.style.zIndex = '1000';
-      document.body.appendChild(overlay);
-
+      countdownOverlay.style.display = 'flex';
       let count = 3;
-      overlay.textContent = count;
+      countdownOverlay.textContent = count;
       const interval = setInterval(() => {
         count--;
         if (count === 0) {
-          overlay.textContent = 'スタート！';
+          countdownOverlay.textContent = 'スタート！';
         } else if (count < 0) {
           clearInterval(interval);
-          document.body.removeChild(overlay);
+          countdownOverlay.style.display = 'none';
           countdownActive = false;
           gameRunning = true;
           startTime = Date.now();
           gameLoop();
         } else {
-          overlay.textContent = count;
+          countdownOverlay.textContent = count;
         }
       }, 1000);
     }
