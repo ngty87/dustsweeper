@@ -27,18 +27,16 @@
       background: #4caf50;
       width: 100%;
     }
-  #virtualButtons {
-  position: fixed;
-  bottom: 80px; /* 下から少し上にずらす */
-  right: 20px;
-  display: grid;
-  grid-template-columns: 40px 40px 40px;
-  grid-template-rows: 40px 40px;
-  gap: 5px;
-  touch-action: none;
-  z-index: 9999; /* 他の要素の上に表示 */
-}
-
+    #virtualButtons {
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      display: grid;
+      grid-template-columns: 40px 40px 40px;
+      grid-template-rows: 40px 40px;
+      gap: 5px;
+      touch-action: none;
+    }
     .btn {
       width: 40px;
       height: 40px;
@@ -89,6 +87,7 @@
     let gameOver = false;
     let startTime, remainingTime = 30;
     const maxTime = 30;
+    let countdownActive = false;
 
     function updateTimeBar() {
       const percent = Math.max(remainingTime, 0) / maxTime * 100;
@@ -153,6 +152,7 @@
     }
 
     function startCountdown() {
+      countdownActive = true;
       const overlay = document.createElement('div');
       overlay.style.position = 'fixed';
       overlay.style.top = '0';
@@ -176,6 +176,7 @@
         } else if (count < 0) {
           clearInterval(interval);
           document.body.removeChild(overlay);
+          countdownActive = false;
           startTime = Date.now();
           gameLoop();
         } else {
@@ -195,7 +196,7 @@
     }
 
     function movePlayer(dx, dy) {
-      if (gameOver) return;
+      if (gameOver || countdownActive) return;
       const nextX = player.x + dx;
       const nextY = player.y + dy;
 
@@ -248,7 +249,7 @@
     }
 
     function update() {
-      if (!gameOver) {
+      if (!gameOver && !countdownActive) {
         if (keys.ArrowUp) movePlayer(0, -tileSize);
         if (keys.ArrowDown) movePlayer(0, tileSize);
         if (keys.ArrowLeft) movePlayer(-tileSize, 0);
