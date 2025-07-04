@@ -88,6 +88,7 @@
     let startTime, remainingTime = 30;
     const maxTime = 30;
     let countdownActive = false;
+    let gameRunning = false;
 
     function updateTimeBar() {
       const percent = Math.max(remainingTime, 0) / maxTime * 100;
@@ -121,6 +122,7 @@
       score = 0;
       remainingTime = maxTime;
       gameOver = false;
+      gameRunning = false;
       localStorage.setItem('bestScore', bestScore);
 
       const occupied = new Set();
@@ -177,6 +179,7 @@
           clearInterval(interval);
           document.body.removeChild(overlay);
           countdownActive = false;
+          gameRunning = true;
           startTime = Date.now();
           gameLoop();
         } else {
@@ -196,7 +199,7 @@
     }
 
     function movePlayer(dx, dy) {
-      if (gameOver || countdownActive) return;
+      if (gameOver || countdownActive || !gameRunning) return;
       const nextX = player.x + dx;
       const nextY = player.y + dy;
 
@@ -249,7 +252,7 @@
     }
 
     function update() {
-      if (!gameOver && !countdownActive) {
+      if (!gameOver && gameRunning) {
         if (keys.ArrowUp) movePlayer(0, -tileSize);
         if (keys.ArrowDown) movePlayer(0, tileSize);
         if (keys.ArrowLeft) movePlayer(-tileSize, 0);
@@ -276,13 +279,14 @@
 
     function gameLoop() {
       const now = Date.now();
-      if (!gameOver) {
+      if (!gameOver && gameRunning) {
         remainingTime -= (now - startTime) / 1000;
         startTime = now;
         updateTimeBar();
         if (remainingTime <= 0) {
           remainingTime = 0;
           gameOver = true;
+          gameRunning = false;
           if (score > bestScore) {
             bestScore = score;
             localStorage.setItem('bestScore', bestScore);
